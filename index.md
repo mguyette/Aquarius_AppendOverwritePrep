@@ -1,15 +1,28 @@
 
-This project prepares a json object to be input into the Swagger UI for
-the AQUARIUS Acquisition API. This script requires a telemetry file
-(.dat), the time series Unique ID, and the start and end time of the
-period you would like to overwrite with new data.
+On rare occasions, the wrong template has been used on a YSI EXO2 sonde
+and oarameters get loaded into the wrong time series in AQUARIUS
+Time-Series. When this happens, we would rather overwrite the data from
+the wrong parameter with the data from the correct parameter. The
+overwriteappend operation in the AQUARIUS Time-Series Acquisition API
+allows you to completely overwrite data within a time series. We use the
+Swagger UI for this process, and the input is a JSON object that hold
+the unique ID for the time series, the data points, and the time period.
+This project prepares a JSON object to be input into the Swagger UI for
+the AQUARIUS Time-Series Acquisition API.
 
-Note that the \[script\] in the GitHub repo is designed to allow users
-to easily jump to the lines of code that need to be changed for each use
-by making use of the [Code
+The script (available on GitHub [here](AppendOverwrite_PrepDat.R))
+requires a telemetry file (.dat), the time series Unique ID, and the
+start and end time of the period you would like to overwrite with new
+data
+
+Note that the script in the GitHub repo is designed to allow users to
+easily jump to the lines of code that need to be changed for each use by
+making use of the [Code
 Sections](https://support.rstudio.com/hc/en-us/articles/200484568-Code-Folding-and-Sections)
 functionality in RStudio (at least four \# in a row at the end of line
 creates a new Section).
+
+## Input data
 
 The script is designed to accomodate .dat telemetry files downloaded
 from EXO2 YSI deployments. The format of these files is like this:
@@ -27,7 +40,7 @@ dat <- read_csv("./dat_files/IRLML02_WQ_Hourly.dat", skip = 1)
 | 2017-02-16 14:00:00 |   2    |   4526   |   13.88    |   20.64    |  7.74   |    6.11     |    83.9     |    53812.01     |    35.62    |    1.65     |    1.85     |     8.18     |    34.39     |     6.09      |    13.32     |     1.16     |     20.83     |    7.81    |      6.31      |      86.9      |      53831.82      |     35.63      |      0.64      |      1.94      |      8.34       |      36.03      |       6.34       |      13.36      |      1.19       |     NAN     |     NAN      |       NAN       |       NAN       |       NAN       |       NAN       |      NAN       |       NAN        |      NAN      |      NAN      |      NAN      |
 | 2017-02-16 15:00:00 |   3    |   4526   |   13.82    |   20.92    |  7.76   |    6.21     |    85.8     |     53802.3     |    35.61    |    1.65     |    1.12     |     7.7      |    34.57     |     6.09      |    13.29     |     1.16     |     20.98     |    7.81    |      6.22      |      85.9      |      53828.55      |     35.63      |      0.65      |      1.87      |      7.67       |       36        |       6.34       |      13.33      |      1.19       |     NAN     |     NAN      |       NAN       |       NAN       |       NAN       |       NAN       |      NAN       |       NAN        |      NAN      |      NAN      |      NAN      |
 
-## Data Cleaning
+## Clean the data
 
 The structure of the telemetry file requires some very basic data
 cleaning. Here we remove the first two rows, which do not contain value
@@ -40,12 +53,14 @@ dat[,2:length(dat)] <- sapply(dat[,2:length(dat)],
                               as.numeric)
 ```
 
-## Subsetting the data
+## Subset the data
 
 After identifying the AQUARIUS parameter name and label used for the
-time series in question, we use a crosswalk table of AQUARIUS parameter
-names and labels with telemetry column names to select the appropriate
-column from the data frame.
+time series in question, we use a [crosswalk
+table](TelemetryParameters.csv) of AQUARIUS parameter names and labels
+with telemetry column names to select the appropriate column from the
+data frame. Note that you would need to customize this table in order to
+use this in your own AQUARIUS implementation.
 
 ``` r
 # Use the Parameter and Label as shown in Aquarius
@@ -74,6 +89,8 @@ dat <- dat[,c("TIMESTAMP",column)]
 
 After identifying the start and end time for the period requiring
 overwriting, we subset the data frame further, and rename the columns.
+The new column names are required to ensure that the Points section the
+JSON object has the correct labels.
 
 ``` r
 # Start datetime of period requiring overwrite, inclusive
@@ -127,7 +144,7 @@ the Date column in the dataframe is now formatted correctly for the API.
 ## Get the time series Unique ID
 
 The API makes use of the 32-character time series Unique ID, found by
-selecting View/Edit Details under the hamburger buggon for the time
+selecting View/Edit Details under the hamburger button for the time
 series in question and navigating to the bottom of the Time Series
 Attributes section.
 
@@ -135,7 +152,7 @@ Attributes section.
 uid <- "9259636e1fb9425f9934b355a785d7e4"
 ```
 
-## Create a data frame that is built around the json structure requirements as defined by Aquatic Informatics
+## Create a data frame that is built around the API’s JSON structure requirements
 
 The JSON object that can be used in the API has three distinct parts: a
 Unique ID, the data Points, and the Time Range. We first create a nested
@@ -256,6 +273,9 @@ json_for_export
     ##   }
     ## ]
 
-\#\#==\> CHANGE JSON FILE LOCATION AND FILE NAME HERE \#\#\#\# \#\# You
-MUST include .json at the end of the file name \#\# Save file to disk
-write(json\_for\_export, file = “./JSON\_files/HBI\_SpCond.json”)
+## Use the JSON object in the AQUARIUS Time-Series Acquisition API
+
+To execute the overwriteappend operation in the API using Swagger UI,
+you simple paste the JSON object into the body of the Parameters
+section, and paste the Unique ID and Time Period from the JSON object
+into their respective boxes and run it.
