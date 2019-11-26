@@ -1,14 +1,15 @@
 ---
 output: github_document
+always_allow_html: true
 ---
 
 ```{r setup, include = FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-On rare occasions, the wrong template has been used on a YSI EXO2 sonde and oarameters get loaded into the wrong time series in AQUARIUS Time-Series.  When this happens, we would rather overwrite the data from the wrong parameter with the data from the correct parameter.  The overwriteappend operation in the AQUARIUS Time-Series Acquisition API allows you to completely overwrite data within a time series.  We use the Swagger UI for this process, and the input is a JSON object that hold the unique ID for the time series, the data points, and the time period.  This project prepares a JSON object to be input into the Swagger UI for the AQUARIUS Time-Series Acquisition API.  
+On rare occasions, the wrong template has been used on a [YSI EXO2](https://www.ysi.com/EXO2) sonde and parameters get loaded into the wrong time series in AQUARIUS Time-Series.  When this happens, we would rather overwrite the data from the wrong parameter with the data from the correct parameter.  The overwriteappend operation in the AQUARIUS Time-Series Acquisition API allows you to completely overwrite data within a time series.  We use the Swagger UI for this process, and the input is a JSON object that holds the unique ID for the time series, the data points, and the time period.  This project prepares a JSON object to be input into the Swagger UI for the AQUARIUS Time-Series Acquisition API.  
 
-The script (available on GitHub [here](AppendOverwrite_PrepDat.R)) requires a telemetry file (.dat), the time series Unique ID, and the start and end time of the period you would like to overwrite with new data
+The script (available on GitHub [here](OverwriteAppend_PrepDat.R)) requires a telemetry file (.dat), the time series Unique ID, and the start and end time of the period you would like to overwrite with new data.
 
 Note that the script in the GitHub repo is designed to allow users to easily jump to the lines of code that need to be changed for each use by making use of the [Code Sections](https://support.rstudio.com/hc/en-us/articles/200484568-Code-Folding-and-Sections) functionality in RStudio (at least four # in a row at the end of line creates a new Section).
 
@@ -22,7 +23,7 @@ library(pander)
 
 ## Input data
 
-The script is designed to accomodate .dat telemetry files downloaded from EXO2 YSI deployments.  The format of these files is like this:
+The script is designed to accomodate .dat telemetry files downloaded from EXO2 YSI deployments.  The program we use results in the following format:
 
 ```{r, message = F}
 dat <- read_csv("./dat_files/IRLML02_WQ_Hourly.dat", skip = 1)
@@ -37,16 +38,16 @@ pander(head(dat), style = "rmarkdown", split.tables = Inf)
 The structure of the telemetry file requires some very basic data cleaning.  Here we remove the first two rows, which do not contain value data, and convert data types from character to POSIXct and numeric.
 
 ```{r}
-dat <- dat[-c(1:2),]
-dat$TIMESTAMP <- as.POSIXct(dat$TIMESTAMP,tz = "EST")
-dat[,2:length(dat)] <- sapply(dat[,2:length(dat)],
-                              as.numeric)
+dat <- dat %>% 
+  slice(3:n()) %>% 
+  mutate(TIMESTAMP = as.POSIXct(TIMESTAMP, tz = "EST")) %>% 
+  mutate_at(vars(RECORD:SUNA_SupVolt), as.numeric)
 ```
 
 
 ## Subset the data
 
-After identifying the AQUARIUS parameter name and label used for the time series in question, we use a [crosswalk table](TelemetryParameters.csv) of AQUARIUS parameter names and labels with telemetry column names to select the appropriate column from the data frame.  Note that you would need to customize this table in order to use this in your own AQUARIUS implementation.
+After identifying the AQUARIUS parameter name and label used for the time series in question, we use a [crosswalk table](TelemetryParameters.csv) of AQUARIUS parameter names and labels with telemetry column names to select the appropriate column from the data frame and rename the columns.  The new column names are required to ensure that the Points section of the JSON object has the correct labels.  Note that you would need to customize the crosswalk table in order to use this in your own AQUARIUS implementation.
 
 ```{r}
 # Use the Parameter and Label as shown in Aquarius
@@ -61,14 +62,16 @@ column <- as.character(xwalk$Telemetry_Column[xwalk$Parameter == parameter &
                                               xwalk$Label == label])
 
 # Subset the dat file to include only the datetime and the parameter of interest
-dat <- dat[,c("TIMESTAMP",column)]
+# Rename the columns
+dat <- dat %>% 
+  select(Time = TIMESTAMP, Value = column)
 ```
 
 ```{r, results = 'asis', echo = F}
 pander(head(dat), style = "rmarkdown", split.tables = Inf)
 ```
 
-After identifying the start and end time for the period requiring overwriting, we subset the data frame further, and rename the columns.  The new column names are required to ensure that the Points section the JSON object has the correct labels.
+After identifying the start and end time for the period requiring overwriting, we subset the data frame further.
 
 ```{r}
 # Start datetime of period requiring overwrite, inclusive
@@ -80,10 +83,8 @@ starttime <- as.POSIXct("2017-08-09 14:00:00", "%Y-%m-%d %H:%M:%S", tz = "EST")
 endtime <- as.POSIXct("2017-08-10 07:00:00", "%Y-%m-%d %H:%M:%S", tz = "EST")
 
 # Subset the data set based on the these time contraints
-cut <- dat[dat$TIMESTAMP >= starttime & dat$TIMESTAMP <= endtime, ]
-
-# Change column names
-names(cut) <- c("Time", "Value")
+cut <- dat %>% 
+  filter(Time >= starttime, Time <= endtime)
 ```
 
 ```{r, results = 'asis', echo = F}
@@ -134,6 +135,8 @@ str(df_json)
 
 ## Convert to a JSON object
 
+Finally, we convert the nested data frame into a JSON object.
+
 ```{r}
 json_for_export <- jsonlite::toJSON(df_json, pretty = T)
 json_for_export
@@ -141,6 +144,4 @@ json_for_export
 
 ## Use the JSON object in the AQUARIUS Time-Series Acquisition API
 
-To execute the overwriteappend operation in the API using Swagger UI, you simple paste the JSON object into the body of the Parameters section, and paste the Unique ID and Time Period from the JSON object into their respective boxes and run it.
-
-
+To execute the overwriteappend operation in the API using Swagger UI, you simply paste the JSON object into the body of the Parameters section, paste the Unique ID and Time Period from the JSON object into their respective boxes, and run it.
