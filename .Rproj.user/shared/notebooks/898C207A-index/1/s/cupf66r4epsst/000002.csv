@@ -1,4 +1,0 @@
-"0","dat <- dat[-c(1:2),]"
-"0","dat$TIMESTAMP <- as.POSIXct(dat$TIMESTAMP,tz = ""EST"")"
-"0","dat[,2:length(dat)] <- sapply(dat[,2:length(dat)],"
-"0","                              as.numeric)"
