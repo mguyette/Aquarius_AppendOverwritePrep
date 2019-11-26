@@ -1,0 +1,3 @@
+"0","cut$Time <- format(cut$Time,""%Y-%m-%dT%H:%M:%SZ"", tz = ""GMT"")"
+"0","starttime_iso <- format(starttime,""%Y-%m-%dT%H:%M:%SZ"", tz = ""GMT"")"
+"0","endtime_iso <- format(endtime + 60,""%Y-%m-%dT%H:%M:%SZ"", tz = ""GMT"")"
